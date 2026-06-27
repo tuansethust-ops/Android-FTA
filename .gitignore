@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Test traces (large binary files)
+*.pftrace
+*.perfetto-trace
+*.trace
+
+# Generated reports
+*_report.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-level agent config (local only)
+.clinerules
+
+# Python source files (if distributing as binary / compiled package)
+# Uncomment if needed: *.py

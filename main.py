@@ -69,9 +69,16 @@ def main():
     args = parser.parse_args()
     
     if args.command == "run":
-        tp_bin = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "trace_processor"))
+        # Support both trace_processor (Linux/macOS) and trace_processor.exe (Windows)
+        tp_bin_win = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "trace_processor.exe"))
+        tp_bin_unix = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "trace_processor"))
+        tp_bin = tp_bin_win if os.path.exists(tp_bin_win) else tp_bin_unix
+
         if not os.path.exists(tp_bin):
-            print(f"Error: trace_processor binary not found at {tp_bin}")
+            print(f"Error: trace_processor binary not found.")
+            print(f"  Checked: {tp_bin_win}")
+            print(f"  Checked: {tp_bin_unix}")
+            print("Download from: https://perfetto.dev/docs/contributing/build-instructions")
             sys.exit(1)
             
         provider = PerfettoProvider(tp_bin, args.trace)

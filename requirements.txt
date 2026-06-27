@@ -1,0 +1,6 @@
+# No external Python packages required.
+# Uses only Python standard library.
+# Requires platform-specific trace_processor binary:
+#   - trace_processor.exe (Windows)
+#   - trace_processor (Linux)
+#   - trace_processor (macOS)

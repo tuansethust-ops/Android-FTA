@@ -1,0 +1,28 @@
+{
+  "name": "startup_analysis",
+  "description": "Android App Launch Performance Analysis using Perfetto Stdlib",
+  "queries": {
+    "startups": "INCLUDE PERFETTO MODULE android.startup.startups; INCLUDE PERFETTO MODULE android.startup.time_to_display; SELECT s.startup_id, s.package, s.startup_type, s.dur/1000000.0 as dur_ms, ttd.time_to_initial_display/1000000.0 as ttid_ms, ttd.time_to_full_display/1000000.0 as ttfd_ms FROM android_startups s LEFT JOIN android_startup_time_to_display ttd USING(startup_id)",
+    "breakdown": "INCLUDE PERFETTO MODULE android.startup.startup_breakdowns; SELECT reason, SUM(dur)/1000000.0 as total_dur_ms FROM android_startup_opinionated_breakdown WHERE startup_id = {startup_id} GROUP BY reason",
+    "thread_states": "INCLUDE PERFETTO MODULE android.startup.startups; SELECT state, SUM(ts.dur)/1000000.0 as total_dur_ms FROM thread_state ts JOIN thread t ON ts.utid = t.utid JOIN android_startups s ON ts.ts >= s.ts AND ts.ts <= s.ts + s.dur WHERE t.name LIKE '%main%' AND s.startup_id = {startup_id} GROUP BY state",
+    "cpu_freq": "INCLUDE PERFETTO MODULE android.startup.startups; SELECT AVG(value)/1000.0 as avg_freq_mhz FROM counter c JOIN cpu_counter_track t ON c.track_id = t.id JOIN android_startups s ON c.ts >= s.ts AND c.ts <= s.ts + s.dur WHERE t.name = 'cpufreq' AND s.startup_id = {startup_id}"
+  },
+  "thresholds": {
+    "bind_application": {"high": 150, "medium": 50},
+    "art_lock_contention": {"high": 80, "medium": 30},
+    "mutex_contention": {"high": 80, "medium": 30},
+    "binder": {"high": 60, "medium": 20},
+    "gc_activity": {"high": 40, "medium": 15},
+    "jit_compiling": {"high": 50, "medium": 20},
+    "activity_start": {"high": 100, "medium": 30},
+    "activity_resume": {"high": 30, "medium": 10},
+    "inflate": {"high": 100, "medium": 40},
+    "dlopen": {"high": 50, "medium": 20},
+    "choreographer_do_frame": {"high": 30, "medium": 16},
+    "client_transaction_executed": {"high": 30, "medium": 10},
+    "resources_manager_get_resources": {"high": 30, "medium": 10},
+    "thread_runnable_ms": {"high": 50, "medium": 20},
+    "thread_uninterruptible_ms": {"high": 40, "medium": 15},
+    "cpu_freq_mhz": {"high": 0, "medium": 1500, "compare_mode": "absolute_lt"}
+  }
+}

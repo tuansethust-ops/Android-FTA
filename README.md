@@ -4,18 +4,18 @@
 
 ---
 
-## Tong quan
+## Overview
 
-`Android-FTA` la cong cu phan tich hieu nang khoi chay ung dung Android, ket hop:
+`Android-FTA` is a tool for analyzing Android app startup performance, combining:
 
-- **Perfetto Trace Processor** — xu ly trace goc tu thiet bi thuc
-- **Skill-based Analysis** — trich xuat metrics theo tung kich ban (skill)
-- **Fault Tree Analysis (FTA)** — chan doan nguyen nhan goc re (root cause) bang MCS
-- **JSON-driven Knowledge Base** — de mo rong, khong can sua code
+- **Perfetto Trace Processor** — processing raw traces from real devices
+- **Skill-based Analysis** — extracting metrics per scenario (skill)
+- **Fault Tree Analysis (FTA)** — diagnosing root causes using MCS (Minimal Cut Sets)
+- **JSON-driven Knowledge Base** — to extend without modifying code
 
 ---
 
-## Kien truc he thong
+## System Architecture
 
 ```
 analyzer/
@@ -35,21 +35,16 @@ analyzer/
 trace_processor                  # Perfetto v56.1 auto-generated wrapper
 ```
 
-### Luong du lieu
-
-
----
-
-## Luồng dữ liệu
+### Data Flow
 
 ```
 [Perfetto Trace File]
          │
          ▼
 PerfettoProvider.query(sql)
-   └→ Ghi SQL → temp .sql
-   └→ Chạy: trace_processor -q <temp.sql> <trace>
-   └→ Nhận CSV stdout
+   └→ Write SQL → temp .sql
+   └→ Run: trace_processor -q <temp.sql> <trace>
+   └→ Receive CSV stdout
    └→ Parse → list[dict]
          │
          ▼
@@ -60,41 +55,41 @@ SkillEngine.run_startup_analysis()
          ▼
 FTAEngine.evaluate("startup_analysis", metrics, thresholds)
    ├→ Load root_causes.json
-   ├→ So sánh metrics vs thresholds
-   ├→ Phân loại: HIGH / MEDIUM / NONE
-   └→ Sắp xếp → list[issues] (MCS)
+   ├→ Compare metrics vs thresholds
+   ├→ Classify: HIGH / MEDIUM / NONE
+   └→ Sort → list[issues] (MCS)
          │
          ▼
 main.py → format_report() → Markdown → startup_analysis_report.md
 ```
 ---
 
-## Cài đặt & Chạy
+## Installation & Running
 
-### Yêu cầu
+### Requirements
 
 - Python 3.x
 - Perfetto trace file (`.pftrace`, `.perfetto`, `.trace`)
-- `trace_processor` binary (đi kèm repo, auto-download nếu thiếu)
+- `trace_processor` binary (included in repo, auto-download if missing)
 
-### Chạy phân tích
+### Run Analysis
 
 ```bash
-# Phân tích startup
+# Startup analysis
 python -m analyzer.main run startup_analysis --trace <path_to_trace.pftrace>
 
-# Ví dụ:
+# Example:
 python -m analyzer.main run startup_analysis --trace SmartPerfetto/test-traces/lacunh_heavy.pftrace
 ```
 
-### Đầu ra
+### Output
 
-- File báo cáo Markdown: `startup_analysis_report.md`
-- Bao gồm:
-  - Tổng thời gian khởi chạy (dur/TTID/TTFD)
-  - Metrics hệ thống cấp thấp
-  - Minimal Cut Sets (MCS) được sắp xếp theo mức độ nghiêm trọng
-  - Đề xuất khắc phục cụ thể
+- Markdown report file: `startup_analysis_report.md`
+- Includes:
+  - Total startup time (dur/TTID/TTFD)
+  - Low-level system metrics
+  - Minimal Cut Sets (MCS) sorted by severity level
+  - Specific remediation suggestions
  
 ---
 
@@ -107,10 +102,10 @@ This project is licensed under the terms of the LICENSE file in the repository r
 ## Contributing
 
 1. Fork repo
-2. Tạo feature branch: `git checkout -b feature/new-skill`
+2. Create feature branch: `git checkout -b feature/new-skill`
 3. Commit: `git commit -m "Add new skill"`
 4. Push: `git push origin feature/new-skill`
-5. Tạo Pull Request
+5. Create Pull Request
 
 ---
 
@@ -123,4 +118,4 @@ This project is licensed under the terms of the LICENSE file in the repository r
 
 ## Credits
 
-Phát triển bởi Android Performance Team. Powered by Perfetto.
+Developed by Android Performance Team. Powered by Perfetto.

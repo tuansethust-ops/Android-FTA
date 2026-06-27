@@ -4,97 +4,97 @@
       "code": "P3.7",
       "name": "Framework bindApplication bootstrap",
       "metric": "bind_application",
-      "recommendation": "Sử dụng Jetpack App Startup, hoãn khởi tạo SDK không thiết yếu, audit ContentProviders."
+      "recommendation": "Use Jetpack App Startup, defer non-essential SDK initialization, audit ContentProviders."
     },
     {
       "code": "P4.5",
       "name": "App-side class, code and native first-use (JIT/Dex)",
       "metric": "jit_compiling",
-      "recommendation": "Thiếu Baseline Profile hoặc Cloud Profile. Ứng dụng phải tự biên dịch JIT lúc khởi chạy."
+      "recommendation": "Missing Baseline Profile or Cloud Profile. App is forced to JIT compile during startup."
     },
     {
       "code": "P4.3",
       "name": "Activity instantiation and lifecycle",
       "metric": "activity_start",
-      "recommendation": "Hàm onCreate() hoặc onStart() của Activity chính quá nặng. Phân rã thêm các view/fragments."
+      "recommendation": "Heavy onCreate() or onStart() in main Activity. Consider lazily inflating views/fragments."
     },
     {
       "code": "P4.3",
       "name": "Activity instantiation and lifecycle (Resume)",
       "metric": "activity_resume",
-      "recommendation": "Hàm onResume() của Activity chính chạy quá lâu."
+      "recommendation": "onResume() in main Activity takes too long."
     },
     {
       "code": "P4.6",
       "name": "Synchronization and startup barriers (ART Lock)",
       "metric": "art_lock_contention",
-      "recommendation": "Tránh chặn luồng chính chờ Mutex/Lock từ luồng phụ. Thường gặp khi truy cập singleton đồng bộ."
+      "recommendation": "Avoid blocking the main thread waiting for Mutex/Lock from background threads. Often caused by synchronized singletons."
     },
     {
       "code": "P4.6",
       "name": "Synchronization and startup barriers (Mutex)",
       "metric": "mutex_contention",
-      "recommendation": "Tránh chặn luồng chính chờ Mutex/Lock từ luồng phụ."
+      "recommendation": "Avoid blocking the main thread waiting for Mutex/Lock from background threads."
     },
     {
       "code": "P2.7",
       "name": "Cross-service work and side effects (Binder)",
       "metric": "binder",
-      "recommendation": "Giảm thiểu lời gọi IPC đồng bộ trên Main Thread tới System Server."
+      "recommendation": "Minimize synchronous IPC calls on the Main Thread to System Server."
     },
     {
       "code": "P2.6",
       "name": "Lifecycle transaction construction/delivery",
       "metric": "client_transaction_executed",
-      "recommendation": "Giao tiếp lifecycle từ system_server gửi xuống mất nhiều thời gian xử lý."
+      "recommendation": "Lifecycle communication from system_server takes too long to process."
     },
     {
       "code": "P3.6",
       "name": "Native library and linker initialization (dlopen)",
       "metric": "dlopen",
-      "recommendation": "Việc load thư viện C++ (.so) mất nhiều thời gian, xem xét load ở luồng nền nếu không cần ngay."
+      "recommendation": "Loading C++ libraries (.so) is taking too long. Consider loading them in a background thread if not immediately needed."
     },
     {
       "code": "P5.6",
       "name": "Layout inflation, View construction and styling",
       "metric": "inflate",
-      "recommendation": "Quá trình inflate file XML quá chậm. Xem xét làm phẳng view hierarchy hoặc dùng AsyncLayoutInflater/Compose."
+      "recommendation": "XML layout inflation is too slow. Consider flattening the view hierarchy or using AsyncLayoutInflater/Compose."
     },
     {
       "code": "P5.2",
       "name": "Resource table and asset-content loading",
       "metric": "resources_manager_get_resources",
-      "recommendation": "Trễ do truy xuất Resources/Assets. Tránh đọc file lớn đồng bộ."
+      "recommendation": "Delay caused by Resources/Assets access. Avoid synchronous large file reads."
     },
     {
       "code": "P6.2",
       "name": "Measure and layout traversal",
       "metric": "choreographer_do_frame",
-      "recommendation": "Render frame đầu tiên (measure/layout/draw) quá nặng. Tối ưu hóa UI hierarchy."
+      "recommendation": "First frame rendering (measure/layout/draw) is too heavy. Optimize UI hierarchy."
     },
     {
       "code": "P8.1",
       "name": "CPU capacity and scheduler interference",
       "metric": "thread_runnable_ms",
-      "recommendation": "Main Thread sẵn sàng nhưng bị hệ điều hành tước CPU. Kiểm tra số lượng tiến trình nền hoặc ưu tiên cpuset."
+      "recommendation": "Main Thread is runnable but preempted by OS. Check background process count or cpuset priority."
     },
     {
       "code": "P8.3",
       "name": "Storage and filesystem contention",
       "metric": "thread_uninterruptible_ms",
-      "recommendation": "Chuyển tác vụ đọc file lớn/DB sang background thread. Hạn chế SharedPreferences đồng bộ (I/O block)."
+      "recommendation": "Move large file/DB reads to a background thread. Avoid synchronous SharedPreferences (I/O block)."
     },
     {
       "code": "P8.5a",
       "name": "Direct GC blocking",
       "metric": "gc_activity",
-      "recommendation": "Giảm cấp phát đối tượng (memory churn) để tránh kích hoạt GC chặn luồng."
+      "recommendation": "Reduce object allocations (memory churn) to prevent blocking GC."
     },
     {
       "code": "P8.6",
       "name": "Thermal, power, DVFS and core availability",
       "metric": "cpu_freq_mhz",
-      "recommendation": "Kernel hạ xung nhịp do thiết bị quá nóng. Cần dùng ADPF PerformanceHintManager."
+      "recommendation": "Kernel is throttling CPU frequency due to device heating. Use ADPF PerformanceHintManager."
     }
   ]
 }

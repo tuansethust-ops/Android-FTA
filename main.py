@@ -27,7 +27,7 @@ def format_report(skill_name: str, startups_results: list) -> str:
         md.append("| Metric | Value |")
         md.append("| :--- | :--- |")
         for k, v in metrics.items():
-            if k in ["startup_id", "package", "startup_type", "dur_ms", "ttid_ms", "ttfd_ms"]:
+            if k in ["startup_id", "package", "startup_type", "dur_ms", "ttid_ms", "ttfd_ms", "top_blockers"]:
                 continue
             if 'mhz' in k:
                 md.append(f"| {k} | {v:.1f} MHz |")
@@ -47,6 +47,14 @@ def format_report(skill_name: str, startups_results: list) -> str:
                 md.append(f"")
                 md.append(f"**Recommendation:** _{issue['recommendation']}_")
                 md.append("")
+        
+        top_blockers = metrics.get("top_blockers", [])
+        if top_blockers:
+            md.append("### 3. Top 3 External Critical Path Blockers")
+            md.append("These are external system processes that blocked the Main Thread during startup:")
+            for b in top_blockers:
+                md.append(f"- **{b['process']}** (`{b['thread']}`): {b['dur_ms']:.1f} ms")
+            md.append("")
         
         md.append("---\n")
         

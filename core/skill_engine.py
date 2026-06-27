@@ -61,6 +61,19 @@ class SkillEngine:
             if freq_data and freq_data[0].get("avg_freq_mhz") and freq_data[0]["avg_freq_mhz"] != "[NULL]":
                 metrics["cpu_freq_mhz"] = float(freq_data[0]["avg_freq_mhz"])
                 
+            # 5. Top External Blockers (Critical Path)
+            sql_cp = queries.get("top_external_blockers")
+            metrics["top_blockers"] = []
+            if sql_cp:
+                sql_cp = sql_cp.replace("{startup_id}", str(startup_id))
+                cp_data = self.provider.query(sql_cp)
+                for row in cp_data:
+                    metrics["top_blockers"].append({
+                        "process": row["blocker_process"],
+                        "thread": row["blocker_thread"],
+                        "dur_ms": float(row["total_block_dur_ms"])
+                    })
+                
             results.append(metrics)
             
         return results

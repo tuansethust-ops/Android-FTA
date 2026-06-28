@@ -106,3 +106,10 @@ convention = "google"
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.coverage.run]
+omit = [
+    "android_fta/__main__.py",
+    "android_fta/web_server.py",
+    "android_fta/cli/commands.py",
+]

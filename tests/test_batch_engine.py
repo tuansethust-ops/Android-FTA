@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
 from android_fta.core.batch_engine import (
@@ -157,3 +161,151 @@ class TestBatchEngineExtractValues:
         m = StartupMetrics(1, "com.test", "cold", 500, 350, 480)
         values = BatchEngine._extract_values([m], "nonexistent")
         assert values == []
+
+
+# ---------------------------------------------------------------------------
+# BatchEngine comparison and delta evaluation tests
+# ---------------------------------------------------------------------------
+
+
+class TestBatchEngineCompare:
+    """Test suite for BatchEngine compare operations."""
+
+    def test_evaluate_delta(self, tmp_skills_dir, tmp_strategies_dir) -> None:
+        """Test delta evaluation against thresholds."""
+        engine = BatchEngine("dummy_tp", tmp_skills_dir, tmp_strategies_dir)
+        # Test delta_high <= 0
+        issue = engine._evaluate_delta(
+            "cpu_freq_mhz", 10.0, {"cpu_freq_mhz": {"high": 0}}, "startup_analysis"
+        )
+        assert issue is None
+
+        # Test high severity
+        issue = engine._evaluate_delta(
+            "bind_application",
+            200.0,
+            {"bind_application": {"high": 150, "medium": 50}},
+            "startup_analysis",
+        )
+        assert issue is not None
+        assert issue.severity == "HIGH"
+        assert issue.code == "P3.7"
+
+        # Test medium severity
+        issue = engine._evaluate_delta(
+            "bind_application",
+            100.0,
+            {"bind_application": {"high": 150, "medium": 50}},
+            "startup_analysis",
+        )
+        assert issue is not None
+        assert issue.severity == "MEDIUM"
+
+        # Test no issue (below medium)
+        issue = engine._evaluate_delta(
+            "bind_application",
+            20.0,
+            {"bind_application": {"high": 150, "medium": 50}},
+            "startup_analysis",
+        )
+        assert issue is None
+
+        # Test no cause found
+        issue = engine._evaluate_delta(
+            "nonexistent_metric",
+            200.0,
+            {"nonexistent_metric": {"high": 150, "medium": 50}},
+            "startup_analysis",
+        )
+        assert issue is None
+
+    def test_compare_app(self, tmp_skills_dir, tmp_strategies_dir) -> None:
+        """Test AppComparison generation."""
+        engine = BatchEngine("dummy_tp", tmp_skills_dir, tmp_strategies_dir)
+        # Test empty lists
+        comp = engine._compare_app("Camera", "first", [], [], "startup_analysis")
+        assert comp.app_name == "Camera"
+        assert len(comp.metrics) == 0
+
+        # Test with mock metrics
+        dut_metric = StartupMetrics(
+            startup_id=1,
+            package="com.camera",
+            startup_type="cold",
+            dur_ms=600.0,
+            ttid_ms=400.0,
+            ttfd_ms=580.0,
+            breakdown={"bind_application": 180.0},
+        )
+        ref_metric = StartupMetrics(
+            startup_id=2,
+            package="com.camera",
+            startup_type="cold",
+            dur_ms=500.0,
+            ttid_ms=300.0,
+            ttfd_ms=480.0,
+            breakdown={"bind_application": 100.0},
+        )
+        comp = engine._compare_app(
+            "Camera", "first", [dut_metric], [ref_metric], "startup_analysis"
+        )
+        assert comp.app_name == "Camera"
+        assert comp.entry_type == "first"
+        assert len(comp.metrics) > 0
+        # Find bind_application metric
+        bind_app = next(m for m in comp.metrics if m.name == "bind_application")
+        assert bind_app.dut_median == 180.0
+        assert bind_app.ref_median == 100.0
+        assert bind_app.delta == 80.0
+        # 80.0 is above medium (50) but below high (150)
+        assert bind_app.issue is not None
+        assert bind_app.issue.severity == "MEDIUM"
+
+    def test_compare_pipeline(self, tmp_skills_dir, tmp_strategies_dir) -> None:
+        """Test the end-to-end compare pipeline (with thread pool executor)."""
+        # Create temp folders for DUT and REF
+        with tempfile.TemporaryDirectory() as dut_dir, tempfile.TemporaryDirectory() as ref_dir:
+            dut_path = Path(dut_dir)
+            ref_path = Path(ref_dir)
+
+            # Create some dummy pftrace files (2 in each to trigger parallel executor path)
+            (dut_path / "Camera_first_20260628_120000.pftrace").write_text("dummy")
+            (dut_path / "Camera_first_20260628_120001.pftrace").write_text("dummy")
+            (ref_path / "Camera_first_20260628_120000.pftrace").write_text("dummy")
+            (ref_path / "Camera_first_20260628_120001.pftrace").write_text("dummy")
+
+            engine = BatchEngine("dummy_tp", tmp_skills_dir, tmp_strategies_dir, max_workers=2)
+
+            dut_metrics = StartupMetrics(
+                startup_id=1,
+                package="com.camera",
+                startup_type="cold",
+                dur_ms=600.0,
+                ttid_ms=400.0,
+                ttfd_ms=580.0,
+                breakdown={"bind_application": 180.0},
+            )
+            ref_metrics = StartupMetrics(
+                startup_id=2,
+                package="com.camera",
+                startup_type="cold",
+                dur_ms=500.0,
+                ttid_ms=300.0,
+                ttfd_ms=480.0,
+                breakdown={"bind_application": 100.0},
+            )
+
+            # Mock _analyze_single_trace
+            def mock_analyze(trace_path: Path, skill_name: str) -> list[StartupMetrics]:
+                if "dut" in str(trace_path).lower():
+                    return [dut_metrics]
+                return [ref_metrics]
+
+            with patch.object(engine, "_analyze_single_trace", side_effect=mock_analyze):
+                report = engine.compare(dut_dir, ref_dir, "startup_analysis")
+                assert report.dut_label == dut_path.name
+                assert report.ref_label == ref_path.name
+                assert len(report.apps) == 1
+                app_comp = report.apps[0]
+                assert app_comp.app_name == "Camera"
+                assert app_comp.entry_type == "first"

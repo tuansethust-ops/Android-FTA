@@ -29,3 +29,17 @@ Thumbs.db
 
 # Python source files (if distributing as binary / compiled package)
 # Uncomment if needed: *.py
+
+# Testing and cache
+.coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+cov.xml
+
+# Virtual environments
+venv/
+.venv/
+env/
+

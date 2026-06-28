@@ -1,4 +1,4 @@
-"""Entry point for Android-FTA CLI."""
+"""Allow running as `python -m android_fta`."""
 
 from __future__ import annotations
 

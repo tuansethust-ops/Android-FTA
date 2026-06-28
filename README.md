@@ -1,121 +1,125 @@
-# Android-FTA: Android App Launch Delay Analyzer (v4)
+# Android-FTA: Android App Launch Delay Analyzer
 
 **AI-powered Android app startup performance analysis using Fault Tree Analysis (FTA) and Perfetto.**
 
----
-
-## Overview
-
-`Android-FTA` is a tool for analyzing Android app startup performance, combining:
-
-- **Perfetto Trace Processor** — processing raw traces from real devices
-- **Skill-based Analysis** — extracting metrics per scenario (skill)
-- **Fault Tree Analysis (FTA)** — diagnosing root causes using MCS (Minimal Cut Sets)
-- **JSON-driven Knowledge Base** — to extend without modifying code
+This project uses Google's standalone `trace_processor` binary to execute SQL queries on Perfetto trace files, matching results against threshold values to diagnose performance issues according to the AOSP P1-P8 taxonomy.
 
 ---
 
-## System Architecture
+## Features
+
+- **Decoupled Architecture**: SQL queries, performance thresholds, and root-cause strategies are configured as JSON files. No Python edits are needed to support new scenarios.
+- **Single-Trace Analysis (`run`)**: Extracts launch timing breakdowns (Zygote, bindApplication, inflate, etc.), thread scheduling states, average CPU frequencies, and the top 3 external critical path blockers.
+- **Batch Differential Comparison (`compare`)**: Group trace files from DUT and REF directories across cycles, compute medians to filter outliers, calculate deltas, and evaluate using delta-thresholds.
+- **Multi-Format Output**: Reports can be formatted and saved as **Markdown**, **JSON**, or **CSV**.
+- **Parallel Trace Analysis**: Leverage python concurrent threads via `--max-workers` to parse multiple traces concurrently.
+- **Comprehensive Tests**: 78 unit and integration tests passing, ensuring robustness of data models, providers, and parsing.
+
+---
+
+## Project Structure
 
 ```
-analyzer/
-├── main.py                    # CLI entrypoint
-├── core/
-│   ├── fta_engine.py          # Fault Tree Analysis Engine
-│   └── skill_engine.py        # Skill orchestrator (SQL runner)
-├── providers/
-│   └── perfetto_provider.py   # Adapter: Python -> trace_processor binary
-├── knowledge/
-│   ├── skills/
-│   │   └── startup_analysis.json  # SQL queries + thresholds
-│   └── strategies/
-│       └── root_causes.json       # Knowledge base: root causes + recommendations
-└── README.md                       # This file
-
-trace_processor                  # Perfetto v56.1 auto-generated wrapper
+Android-FTA/
+├── main.py                     # CLI Entry Point
+├── pyproject.toml              # Project dependencies and tool configurations
+├── trace_processor.exe         # Perfetto trace processor binary (Windows)
+├── android_fta/                # Main package
+│   ├── __main__.py             # Submodule entry point (python -m android_fta)
+│   ├── cli/                    # CLI parsing and command routing
+│   ├── core/                   # SkillEngine, FTAEngine, BatchEngine, and Models
+│   ├── providers/              # Perfetto Trace Processor subprocess adapter
+│   └── reports/                # Markdown, CSV, and JSON formatters
+├── knowledge/                  # Performance Knowledge base (SQL queries, rules)
+│   ├── skills/                 # Skill definitions (timings and thresholds)
+│   └── strategies/             # Strategies (root-cause mappings)
+├── docs/                       # Documentation (Architecture, Deep dive)
+└── tests/                      # Unit test suite
 ```
 
-### Data Flow
+For a detailed walkthrough of code modules and extensibility patterns, please refer to the [Architecture Guide](docs/ARCHITECTURE.md).
 
-```
-[Perfetto Trace File]
-         │
-         ▼
-PerfettoProvider.query(sql)
-   └→ Write SQL → temp .sql
-   └→ Run: trace_processor -q <temp.sql> <trace>
-   └→ Receive CSV stdout
-   └→ Parse → list[dict]
-         │
-         ▼
-SkillEngine.run_startup_analysis()
-   ├→ Query bindApplication, thread_states, cpu_freq...
-   └→ metrics: {bind_application_ms, thread_runnable_ms, ...}
-         │
-         ▼
-FTAEngine.evaluate("startup_analysis", metrics, thresholds)
-   ├→ Load root_causes.json
-   ├→ Compare metrics vs thresholds
-   ├→ Classify: HIGH / MEDIUM / NONE
-   └→ Sort → list[issues] (MCS)
-         │
-         ▼
-main.py → format_report() → Markdown → startup_analysis_report.md
-```
 ---
 
 ## Installation & Running
 
 ### Requirements
 
-- Python 3.x
-- Perfetto trace file (`.pftrace`, `.perfetto`, `.trace`)
-- `trace_processor` binary (included in repo, auto-download if missing)
+- Python 3.10+
+- Perfetto trace processor binary (the package defaults to `./trace_processor.exe` on Windows or `./trace_processor` on Unix. Make sure the binary exists in the project root or is available in your PATH).
 
-### Run Analysis
+### Installation
+
+Install the package in editable mode along with development dependencies:
 
 ```bash
-# Startup analysis
-python -m analyzer.main run startup_analysis --trace <path_to_trace.pftrace>
-
-# Example:
-python -m analyzer.main run startup_analysis --trace SmartPerfetto/test-traces/lacunh_heavy.pftrace
+pip install -e ".[dev]"
 ```
 
-### Output
+### CLI Command Options
 
-- Markdown report file: `startup_analysis_report.md`
-- Includes:
-  - Total startup time (dur/TTID/TTFD)
-  - Low-level system metrics
-  - Minimal Cut Sets (MCS) sorted by severity level
-  - Specific remediation suggestions
- 
+#### 1. Single Trace Analysis (`run`)
+Runs performance rules (skills) on a single trace and outputs a report.
+
+```bash
+python main.py run startup_analysis --trace /path/to/trace.pftrace --format markdown --output report.md
+```
+
+Options:
+* `skill` (positional): Name of the skill to execute (e.g., `startup_analysis`).
+* `--trace` (required): Path to the Perfetto trace file.
+* `--output`, `-o`: File path to save the report (defaults to `<skill>_report.<format>`).
+* `--format`: Output format, choose from `markdown`, `json`, `csv` (defaults to `markdown`).
+* `--max-workers`: Max worker threads (reserved for future parallel startup event parsing).
+
+#### 2. Batch Differential Comparison (`compare`)
+Compares trace files in a DUT directory against a REF directory.
+
+```bash
+python main.py compare --dut ./traces/dut/ --ref ./traces/ref/ --skill startup_analysis --format markdown
+```
+
+Options:
+* `--dut` (required): Directory containing DUT trace files.
+* `--ref` (required): Directory containing REF trace files.
+* `--skill`: Performance skill name (defaults to `startup_analysis`).
+* `--output`, `-o`: Output report path.
+* `--parser-regex`: Custom regex pattern to extract `app`, `timestamp`, `cycle`, and `entry_type` from filenames. If omitted, the Smart Auto-detector is used.
+* `--format`: Output format, choose from `markdown`, `json`, `csv` (defaults to `markdown`).
+* `--max-workers`: Max concurrent threads to analyze traces (defaults to `4`).
+
+---
+
+## Development & Validation
+
+### Running the Test Suite
+
+Run all tests via `pytest`:
+
+```bash
+pytest tests/ -v --tb=short
+```
+
+Run test coverage analysis:
+
+```bash
+pytest tests/ --cov=android_fta --cov-report=term-missing
+```
+
+### Code Formatting & Quality
+
+Code style is enforced via `ruff`. Ensure checks pass before committing:
+
+```bash
+# Lint checks
+ruff check android_fta/ tests/
+
+# Format code
+ruff format android_fta/ tests/
+```
+
 ---
 
 ## License
 
 This project is licensed under the terms of the LICENSE file in the repository root.
-
----
-
-## Contributing
-
-1. Fork repo
-2. Create feature branch: `git checkout -b feature/new-skill`
-3. Commit: `git commit -m "Add new skill"`
-4. Push: `git push origin feature/new-skill`
-5. Create Pull Request
-
----
-
-## Links
-
-- **Repo**: https://github.com/tuansethust-ops/Android-FTA
-- **Perfetto Docs**: https://perfetto.dev/docs/
-
----
-
-## Credits
-
-Developed by Android Performance Team. Powered by Perfetto.

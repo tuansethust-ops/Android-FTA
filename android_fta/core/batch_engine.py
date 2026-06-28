@@ -314,7 +314,7 @@ class BatchEngine:
         metric_names = list(dict.fromkeys(metric_names))  # dedup, preserve order
 
         # Load thresholds
-        skill_engine = SkillEngine(None, self.skills_dir)  # type: ignore[arg-type]
+        skill_engine = SkillEngine(None, self.skills_dir)
         skill = skill_engine.load_skill(skill_name)
         thresholds = skill.get("thresholds", {})
 

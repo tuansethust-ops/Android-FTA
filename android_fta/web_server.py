@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
-import os
 import queue
 import threading
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +18,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from android_fta.core.batch_engine import BatchEngine, FilenameParser
-from android_fta.core.fta_engine import FTAEngine
-from android_fta.core.skill_engine import SkillEngine
 
 # Project root directory
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -56,8 +55,8 @@ class SkillSettings(BaseModel):
 
 def _ask_directory() -> str:
     """Helper to open standard Windows folder dialog in a separate GUI thread."""
-    import tkinter as tk
-    from tkinter import filedialog
+    import tkinter as tk  # noqa: PLC0415
+    from tkinter import filedialog  # noqa: PLC0415
 
     q: queue.Queue[str] = queue.Queue()
 
@@ -66,9 +65,7 @@ def _ask_directory() -> str:
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            directory = filedialog.askdirectory(
-                parent=root, title="Select Trace Directory"
-            )
+            directory = filedialog.askdirectory(parent=root, title="Select Trace Directory")
             root.destroy()
             q.put(directory)
         except Exception as exc:
@@ -90,14 +87,12 @@ def _ask_directory() -> str:
 def get_skills() -> list[dict[str, Any]]:
     """Load and return all skill configurations."""
     if not _SKILLS_DIR.exists():
-        raise HTTPException(
-            status_code=500, detail=f"Skills directory {_SKILLS_DIR} not found."
-        )
+        raise HTTPException(status_code=500, detail=f"Skills directory {_SKILLS_DIR} not found.")
 
     skills = []
     for f in _SKILLS_DIR.glob("*.json"):
         try:
-            with open(f, "r", encoding="utf-8") as file:
+            with open(f, encoding="utf-8") as file:
                 skills.append(json.load(file))
         except Exception as exc:
             raise HTTPException(
@@ -124,9 +119,7 @@ def update_settings(settings: SkillSettings) -> dict[str, str]:
             f.truncate()
         return {"status": "success", "message": f"Updated {settings.skill_name} thresholds."}
     except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to write settings: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail=f"Failed to write settings: {exc}") from exc
 
 
 @app.post("/api/browse")
@@ -145,11 +138,13 @@ class WebSocketLogHandler(logging.Handler):
     """Sends log messages to a WebSocket connection."""
 
     def __init__(self, websocket: WebSocket, loop: asyncio.AbstractEventLoop) -> None:
+        """Initialize the WebSocket log handler."""
         super().__init__()
         self.websocket = websocket
         self.loop = loop
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record by sending it over the WebSocket."""
         msg = self.format(record)
         # Safely schedule the WebSocket send task on the FastAPI main loop thread
         asyncio.run_coroutine_threadsafe(
@@ -184,9 +179,7 @@ async def websocket_compare(websocket: WebSocket) -> None:
     package_logger.setLevel(logging.DEBUG)
 
     handler = WebSocketLogHandler(websocket, loop)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     package_logger.addHandler(handler)
 
     try:
@@ -229,24 +222,19 @@ async def websocket_compare(websocket: WebSocket) -> None:
         report = await loop.run_in_executor(None, run)
 
         # Convert report dataclass to dictionary
-        from dataclasses import asdict
         report_dict = asdict(report)
 
         # Send completed results
-        await websocket.send_text(
-            json.dumps({"type": "result", "report": report_dict})
-        )
+        await websocket.send_text(json.dumps({"type": "result", "report": report_dict}))
 
     except WebSocketDisconnect:
         pass
     except Exception as exc:
         package_logger.exception("WebSocket task failed")
-        try:
+        with contextlib.suppress(Exception):
             await websocket.send_text(
                 json.dumps({"type": "error", "message": f"Server error: {exc}"})
             )
-        except Exception:
-            pass
     finally:
         package_logger.removeHandler(handler)
         package_logger.setLevel(prev_level)
@@ -263,6 +251,5 @@ else:
     # Fallback message for developer setup
     @app.get("/")
     def index() -> dict[str, str]:
-        return {
-            "message": "Android-FTA Backend is running! Static UI folder not built yet."
-        }
+        """Return a fallback JSON response if the static UI is not built."""
+        return {"message": "Android-FTA Backend is running! Static UI folder not built yet."}
